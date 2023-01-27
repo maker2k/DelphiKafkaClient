@@ -73,7 +73,7 @@ object frmProduce: TfrmProduce
       object edtMessage: TEdit
         Touch.InteractiveGestures = [LongTap, DoubleTap]
         Align = Client
-        Text = 'Test message '#248#230#229' - '#20320#22909
+        Text = 'Test message'
         Size.Width = 183.000000000000000000
         Size.Height = 24.000000000000000000
         Size.PlatformDefault = False
@@ -196,16 +196,72 @@ object frmProduce: TfrmProduce
     OnChange = memConfigChange
     Align = Client
     Size.Width = 594.000000000000000000
-    Size.Height = 89.000000000000000000
+    Size.Height = 0.000000000000000000
     Size.PlatformDefault = False
-    Viewport.Width = 590.000000000000000000
-    Viewport.Height = 85.000000000000000000
+    Viewport.Width = 594.000000000000000000
+    Viewport.Height = 0.000000000000000000
   end
   object tmrUpdate: TTimer
     Interval = 200
     OnTimer = tmrUpdateTimer
     Left = 104
     Top = 40
+  end
+  object Panel2: TPanel
+    Align = Top
+    Position.X = 3.000000000000000000
+    Position.Y = 30.000000000000000000
+    Size.Width = 594.000000000000000000
+    Size.Height = 91.000000000000000000
+    Size.PlatformDefault = False
+    TabOrder = 2
+    object grdHeaders: TGrid
+      Align = Client
+      CanFocus = True
+      ClipChildren = True
+      Size.Width = 594.000000000000000000
+      Size.Height = 74.000000000000000000
+      Size.PlatformDefault = False
+      TabOrder = 2
+      Options = [Editing, ColumnResize, ColumnMove, ColLines, RowLines, Tabs, Header, HeaderClick]
+      OnGetValue = grdHeadersGetValue
+      OnSetValue = GrdSetValue
+      Viewport.Width = 594.000000000000000000
+      Viewport.Height = 74.000000000000000000
+      object HeaderUse: TCheckColumn
+      end
+      object HeaderName: TStringColumn
+        Header = 'Name'
+      end
+      object HeaderValue: TStringColumn
+        Header = 'Value'
+        Size.Width = 440.000000000000000000
+      end
+    end
+    object Label7: TLabel
+      Align = Top
+      Size.Width = 594.000000000000000000
+      Size.Height = 17.000000000000000000
+      Size.PlatformDefault = False
+      Text = 'Headers:'
+      TabOrder = 3
+    end
+  end
+  object Splitter1: TSplitter
+    Align = Top
+    Cursor = crVSplit
+    MinSize = 20.000000000000000000
+    Position.X = 3.000000000000000000
+    Position.Y = 121.000000000000000000
+    Size.Width = 594.000000000000000000
+    Size.Height = 8.000000000000000000
+    Size.PlatformDefault = False
+    object FloatAnimation1: TFloatAnimation
+      Duration = 0.200000002980232200
+      PropertyName = 'RotationAngle'
+      StartValue = 0.000000000000000000
+      StopValue = 0.000000000000000000
+    end
   end
   object ActionList1: TActionList
     OnExecute = ActionList1Execute

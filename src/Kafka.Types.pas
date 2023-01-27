@@ -19,6 +19,11 @@ type
     kltDebug
   );
 
+  TMsgHeader = record
+    Name: string;
+    Value: TBytes;
+  end;
+
 const
   KafkaLogTypeDescriptions: Array[TKafkaLogType] of String = (
    'Log',

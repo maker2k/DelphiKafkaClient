@@ -202,7 +202,11 @@ object frmConsume: TfrmConsume
     end
     object colPayload: TStringColumn
       Header = 'Payload'
-      Size.Width = 386.000000000000000000
+      Size.Width = 336.000000000000000000
+    end
+    object colHeaders: TStringColumn
+      Header = 'Headers'
+      Size.Width = 359.000000000000000000
     end
   end
   object tmrUpdate: TTimer

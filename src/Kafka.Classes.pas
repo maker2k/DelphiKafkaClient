@@ -82,6 +82,7 @@ type
     function Produce(const Topic: String; const Payload: String; const Key: String; const Encoding: TEncoding; const Partition: Int32 = RD_KAFKA_PARTITION_UA; const MsgFlags: Integer = RD_KAFKA_MSG_F_COPY; const MsgOpaque: Pointer = nil): Integer; overload;
     function Produce(const Topic: String; const Payloads: TArray<String>; const Key: String; const Partition: Int32 = RD_KAFKA_PARTITION_UA; const MsgFlags: Integer = RD_KAFKA_MSG_F_COPY; const MsgOpaque: Pointer = nil): Integer; overload;
     function Produce(const Topic: String; const Payloads: TArray<String>; const Key: String; const Encoding: TEncoding; const Partition: Int32 = RD_KAFKA_PARTITION_UA; const MsgFlags: Integer = RD_KAFKA_MSG_F_COPY; const MsgOpaque: Pointer = nil): Integer; overload;
+    function Produce(const Topic: String; const Payloads: String; const Key: String; const Headers: TArray<TMsgHeader>; const Partition: Int32 = RD_KAFKA_PARTITION_UA; const MsgFlags: Integer = RD_KAFKA_MSG_F_COPY; const MsgOpaque: Pointer = nil): Integer; overload;
 
     property ProducedCount: Int64 read GetProducedCount;
     property KafkaHandle: prd_kafka_t read GetKafkaHandle;
@@ -243,6 +244,32 @@ end;
 function TKafkaProducer.GetProducedCount: Int64;
 begin
   TInterlocked.Exchange(Result, FProducedCount);
+end;
+
+function TKafkaProducer.Produce(const Topic: String; const Payloads: String; const Key: String; const Headers: TArray<TMsgHeader>; const Partition: Int32 = RD_KAFKA_PARTITION_UA; const MsgFlags: Integer = RD_KAFKA_MSG_F_COPY; const MsgOpaque: Pointer = nil): Integer;
+var
+  KTopic: prd_kafka_topic_t;
+  KHeaders: Prd_kafka_headers_t;
+begin
+
+  KTopic := TKafkaHelper.NewTopic(FKafkaHandle, Topic, nil);
+  KHeaders := TKafkaHelper.NewHeaders(Headers);
+  try
+    Result := TKafkaHelper.Produce(
+      FKafkaHandle,
+      KTopic,
+      Payloads,
+      Key,
+      KHeaders,
+      TEncoding.UTF8,
+      Partition,
+      MsgFlags,
+      MsgOpaque);
+    TInterlocked.Increment(FProducedCount);
+  finally
+    TKafkaHelper.DestroyHeaders(KHeaders);
+    rd_kafka_topic_destroy(KTopic);
+  end;
 end;
 
 function TKafkaProducer.Produce(const Topic: String; const Payload: String; const Key: String; const Partition: Int32; const MsgFlags: Integer;

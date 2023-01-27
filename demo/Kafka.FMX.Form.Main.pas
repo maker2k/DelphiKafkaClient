@@ -3,6 +3,10 @@ unit Kafka.FMX.Form.Main;
 interface
 
 uses
+{$IFDEF VER350} // 11.x  // RAD Studio 11 memory leak
+  FMX.FontGlyphs,  FMX.TextLayout.GPU,
+{$ENDIF}
+
   System.SysUtils, System.Types, System.UITypes, System.Classes,
   System.Variants, System.Actions, System.DateUtils, System.SyncObjs,
   System.Generics.Collections, System.Rtti,
@@ -215,5 +219,15 @@ procedure TfrmKafkaDemo.UpdateStatus;
 begin
   TKafkaHelper.FlushLogs;
 end;
+
+initialization
+
+finalization
+
+{$IFDEF VER350} // 11.x
+  // RAD Studio 11 memory leak
+  TFontGlyphManager.UnInitialize;
+  TGPUObjectsPool.Uninitialize;
+{$ENDIF}
 
 end.

@@ -23,6 +23,7 @@ type
     Key: TBytes;
     Data: TBytes;
     Partition: Integer;
+    Headers: TList<TMsgHeader>;
   end;
 
   TfrmConsume = class(TForm)
@@ -49,6 +50,7 @@ type
     Layout4: TLayout;
     Label4: TLabel;
     edtPartitions: TEdit;
+    colHeaders: TStringColumn;
     procedure btnStartClick(Sender: TObject);
     procedure btnStopClick(Sender: TObject);
     procedure layConsumeControlResize(Sender: TObject);
@@ -123,11 +125,21 @@ begin
 end;
 
 procedure TfrmConsume.grdMessagesGetValue(Sender: TObject; const ACol, ARow: Integer; var Value: TValue);
+var
+  i : Integer;
 begin
   case ACol of
     0: Value := FMsgs[ARow].Partition.ToString;
     1: Value := FStringEncoding.GetString(FMsgs[ARow].Key);
     2: Value := FStringEncoding.GetString(FMsgs[ARow].Data);
+    3: begin
+         Value := '';
+         for i := 0 to FMsgs[ARow].Headers.Count - 1 do
+         begin
+//           Value := Value.AsString + FMsgs[ARow].Headers[i].Name + '=' + FStringEncoding.GetString(FMsgs[ARow].Headers[i].Value) + '; ';
+             Value := Value.AsString + FMsgs[ARow].Headers[i].Name + '=' + TEncoding.ANSI.GetString(FMsgs[ARow].Headers[i].Value) + '; ';
+         end;
+       end;
   end;
 end;
 
@@ -182,11 +194,17 @@ begin
             begin
               MsgRec.Data := TKafkaUtils.PointerToBytes(Msg.payload, Msg.len);
             end;
-
+            try
+               MsgRec.Headers := TKafkaHelper.GetHeaders(Msg, TList<TMsgHeader>.Create);
+            except
+              on E: Exception do
+                TKafkaHelper.Log(E.Message, kltError);
+            end;
             FMsgs.Add(MsgRec);
 
             while FMsgs.Count > TFMXHelper.MAX_LOG_LINES do
             begin
+              FreeAndNil(FMsgs.Items[0].Headers);
               FMsgs.Delete(0);
             end;
           end);

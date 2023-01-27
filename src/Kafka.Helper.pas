@@ -3,7 +3,7 @@ unit Kafka.Helper;
 interface
 
 uses
-  System.SysUtils, System.Classes, System.Diagnostics, System.DateUtils,
+  System.SysUtils, System.Classes, System.Diagnostics, System.DateUtils, System.Generics.Collections,
 
   Kafka.Types,
   Kafka.Lib;
@@ -72,16 +72,20 @@ type
     class procedure DestroyHandle(const KafkaHandle: prd_kafka_t); static;
 
     class function NewTopic(const KafkaHandle: prd_kafka_t; const TopicName: String; const TopicConfiguration: prd_kafka_topic_conf_t = nil): prd_kafka_topic_t;
-
+    class function NewHeaders(const Headers: TArray<TMsgHeader>): Prd_kafka_headers_t;
+    class procedure DestroyHeaders(const KHeaders: Prd_kafka_headers_t);
     class function Produce(const Topic: prd_kafka_topic_t; const Payload: Pointer; const PayloadLength: NativeUInt; const Key: Pointer = nil; const KeyLen: NativeUInt = 0; const Partition: Int32 = RD_KAFKA_PARTITION_UA; const MsgFlags: Integer = RD_KAFKA_MSG_F_COPY; const MsgOpaque: Pointer = nil): Integer; overload;
     class function Produce(const Topic: prd_kafka_topic_t; const Payloads: TArray<Pointer>; const PayloadLengths: TArray<Integer>; const Key: Pointer = nil; const KeyLen: NativeUInt = 0; const Partition: Int32 = RD_KAFKA_PARTITION_UA; const MsgFlags: Integer = RD_KAFKA_MSG_F_COPY; const MsgOpaque: Pointer = nil): Integer; overload;
     class function Produce(const Topic: prd_kafka_topic_t; const Payload: String; const Key: String; const Partition: Int32 = RD_KAFKA_PARTITION_UA; const MsgFlags: Integer = RD_KAFKA_MSG_F_COPY; const MsgOpaque: Pointer = nil): Integer; overload;
     class function Produce(const Topic: prd_kafka_topic_t; const Payload: String; const Key: String; const Encoding: TEncoding; const Partition: Int32 = RD_KAFKA_PARTITION_UA; const MsgFlags: Integer = RD_KAFKA_MSG_F_COPY; const MsgOpaque: Pointer = nil): Integer; overload;
     class function Produce(const Topic: prd_kafka_topic_t; const Payloads: TArray<String>; const Key: String; const Partition: Int32 = RD_KAFKA_PARTITION_UA; const MsgFlags: Integer = RD_KAFKA_MSG_F_COPY; const MsgOpaque: Pointer = nil): Integer; overload;
     class function Produce(const Topic: prd_kafka_topic_t; const Payloads: TArray<String>; const Key: String; const Encoding: TEncoding; const Partition: Int32 = RD_KAFKA_PARTITION_UA; const MsgFlags: Integer = RD_KAFKA_MSG_F_COPY; const MsgOpaque: Pointer = nil): Integer; overload;
-
+    class function Produce(const Produser: prd_kafka_t; const Topic: prd_kafka_topic_t;
+                           const Payload, Key: String; const KHeaders: Prd_kafka_headers_t; const Encoding: TEncoding; const Partition: Int32; const MsgFlags: Integer;
+                           const MsgOpaque: Pointer): Integer; overload;
     class procedure Flush(const KafkaHandle: prd_kafka_t; const Timeout: Integer = 1000);
 
+    class function GetHeaders(const Msg: Prd_kafka_message_t; const Headers: TList<TMsgHeader>): TList<TMsgHeader>;
     // Utils
     class function IsKafkaError(const Error: rd_kafka_resp_err_t): Boolean; static;
 
@@ -98,6 +102,7 @@ resourcestring
   StrMessageSendResult = 'Message send result = %d';
   StrErrorCallBackReaso = 'Error =  %s';
   StrUnableToCreateKaf = 'Unable to create Kafka Handle - %s';
+  StrGetHeader = 'Get header error - %s';
   StrKeysAndValuesMust = 'Keys and Values must be the same length';
   StrMessageNotQueued = 'Message not Queued';
   StrInvalidConfiguratio = 'Invalid configuration key';
@@ -296,6 +301,43 @@ begin
     TMonitor.Exit(TKafkaHelper.FLogStrings);
   end;
 end;
+class function TKafkaHelper.GetHeaders(const Msg: Prd_kafka_message_t;const Headers: TList<TMsgHeader>): TList<TMsgHeader>;
+var
+  PHeaders : Prd_kafka_headers_t;
+  Res : rd_kafka_resp_err_t;
+  i : integer;
+  cnt : integer;
+  name: PAnsiChar;
+  value: Pointer;
+  size: PNativeUInt;
+  header: TMsgHeader;
+begin
+
+  Res :=  rd_kafka_message_headers(Msg, @PHeaders);
+
+  if (Res = RD_KAFKA_RESP_ERR_NO_ERROR) then
+  begin
+    cnt := rd_kafka_header_cnt(PHeaders);
+    for i := 0 to cnt - 1 do
+    begin
+      Res := rd_kafka_header_get_all(PHeaders, i, @name, @value, @size);
+      if Res = RD_KAFKA_RESP_ERR_NO_ERROR then
+      begin
+        header.Name :=  StrPas(name);
+        header.Value := TKafkaUtils.PointerToBytes(value, Integer(size));
+        Headers.Add(header);
+      end else begin
+        raise EKafkaError.CreateFmt(StrGetHeader, [rd_kafka_err2str(Res)])
+      end;
+    end;
+    PHeaders := nil;
+  end else begin
+    //Если не равно значению нет заголовков, то ошибка
+    if Res <> RD_KAFKA_RESP_ERR__NOENT then
+      raise EKafkaError.CreateFmt(StrGetHeader, [rd_kafka_err2str(Res)])
+  end;
+  Result := Headers;
+end;
 
 class procedure TKafkaHelper.Log(const Text: String; const LogType: TKafkaLogType);
 begin
@@ -392,6 +434,31 @@ begin
   end;
 end;
 
+class function TKafkaHelper.NewHeaders(const Headers: TArray<TMsgHeader>): Prd_kafka_headers_t;
+var 
+  i: Integer;
+  AddResult: rd_kafka_resp_err_t;
+begin
+  Result := nil;
+  if Length(Headers) > 0 then
+  begin
+    Result := rd_kafka_headers_new(Length(Headers));
+
+    for i := 0 to Length(Headers) - 1 do
+    begin
+      AddResult := rd_kafka_header_add(Result, PAnsiChar(AnsiString(Headers[i].Name)), length(Headers[i].Name), @Headers[i].Value[0], length(Headers[i].Value));
+      if AddResult <> RD_KAFKA_RESP_ERR_NO_ERROR then
+        raise EKafkaError.CreateFmt('Error added header to message = %s', [rd_kafka_err2str(AddResult)]);
+    end;
+  end;
+end;
+
+class procedure TKafkaHelper.DestroyHeaders(const KHeaders: Prd_kafka_headers_t);
+begin
+  if KHeaders <> nil then
+    rd_kafka_headers_destroy(KHeaders);
+end;
+
 class function TKafkaHelper.NewTopicConfiguration: prd_kafka_topic_conf_t;
 begin
   Result := NewTopicConfiguration([], []);
@@ -420,6 +487,67 @@ begin
       Keys[i],
       Values[i]);
   end;
+end;
+
+class function TKafkaHelper.Produce(const Produser: prd_kafka_t; const Topic: prd_kafka_topic_t;
+  const Payload, Key: String; const KHeaders: Prd_kafka_headers_t;
+  const Encoding: TEncoding; const Partition: Int32; const MsgFlags: Integer;
+  const MsgOpaque: Pointer): Integer;
+var
+  KeyBytes, PayloadBytes: TBytes;
+  line: array[0..6] of rd_kafka_vu_t;
+  _value, _key: _anonymous_type_1;
+  PRes : Prd_kafka_error_t;
+  PropsCount: integer;
+begin
+  PropsCount := 6;
+
+  KeyBytes := TKafkaUtils.StrToBytes(Key, Encoding);
+  PayloadBytes := TKafkaUtils.StrToBytes(Payload, Encoding);
+
+  line[0].vtype := RD_KAFKA_VTYPE_RKT;
+  line[0].u.rkt := Topic;
+
+  _value.ptr := @PayloadBytes[0];
+  _value.size := length(PayloadBytes);
+
+  line[1].vtype := RD_KAFKA_VTYPE_VALUE;
+  line[1].u.mem := _value;
+
+  _key.ptr := @KeyBytes[0];
+  _key.size := length(KeyBytes);
+
+  line[2].vtype := RD_KAFKA_VTYPE_KEY;
+  line[2].u.mem := _key;
+
+  line[3].vtype := RD_KAFKA_VTYPE_PARTITION;
+  line[3].u.i32 := Partition;
+
+  line[4].vtype := RD_KAFKA_VTYPE_MSGFLAGS;
+  line[4].u.i := MsgFlags;
+
+  line[5].vtype := RD_KAFKA_VTYPE_OPAQUE;
+  line[5].u.ptr := MsgOpaque;
+
+  if KHeaders <> nil then
+  begin
+
+    line[6].vtype := RD_KAFKA_VTYPE_HEADERS;
+    line[6].u.headers := rd_kafka_headers_copy(KHeaders);
+
+    PropsCount := PropsCount + 1;
+  end;
+
+  PRes := rd_kafka_produceva(Produser, @line[0], PropsCount);
+
+  if PRes <> nil then
+  begin
+    if (KHeaders <> nil) and (line[6].u.headers <> nil) then
+       rd_kafka_headers_destroy(line[6].u.headers);
+    raise EKafkaError.Create(StrMessageNotQueued);
+  end;
+
+  Result := 0;
 end;
 
 class function TKafkaHelper.Produce(const Topic: prd_kafka_topic_t; const Payloads: TArray<Pointer>; const PayloadLengths: TArray<Integer>; const Key: Pointer;
